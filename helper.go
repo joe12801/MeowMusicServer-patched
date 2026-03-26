@@ -77,31 +77,127 @@ func readSources() []Source {
 	return sources
 }
 
-// Read music from cache
+// Read music from cache folder path like ./files/cache/music/Artist-Song
 func readFromCache(path string) (MusicItem, bool) {
-	// Logic to read music item from a cached folder path
-	// This assumes path is like "files/cache/music/Artist-Song"
 	info, err := os.Stat(path)
 	if err != nil || !info.IsDir() {
 		return MusicItem{}, false
 	}
+	return buildCacheMusicItem(filepath.Base(path))
+}
 
-	dirName := filepath.Base(path)
-	parts := strings.SplitN(dirName, "-", 2)
-	var artist, title string
-	if len(parts) == 2 {
-		artist = parts[0]
-		title = parts[1]
-	} else {
-		title = dirName
+func buildCacheMusicItem(folder string) (MusicItem, bool) {
+	folder = strings.TrimSpace(folder)
+	if folder == "" {
+		return MusicItem{}, false
 	}
 
-	return getLocalMusicItem(title, artist), true
+	dirPath := filepath.Join("./files/cache/music", folder)
+	mp3Path := filepath.Join(dirPath, "music.mp3")
+	if info, err := os.Stat(mp3Path); err != nil || info.IsDir() || info.Size() < 1024 {
+		return MusicItem{}, false
+	}
+
+	artist := "缓存音乐"
+	title := folder
+	if strings.Contains(folder, "-") {
+		parts := strings.SplitN(folder, "-", 2)
+		artist = strings.TrimSpace(parts[0])
+		title = strings.TrimSpace(parts[1])
+	}
+
+	basePath := "/cache/music/" + url.PathEscape(folder)
+	item := MusicItem{
+		Title:        title,
+		Artist:       artist,
+		Filename:     folder + ".mp3",
+		AudioURL:     basePath + "/music.mp3",
+		AudioFullURL: basePath + "/music.mp3",
+		Duration:     GetDuration(mp3Path),
+		FromCache:    true,
+		SourceType:   "cache",
+	}
+	if _, err := os.Stat(filepath.Join(dirPath, "music.m3u8")); err == nil {
+		item.M3U8URL = basePath + "/music.m3u8"
+	}
+	if _, err := os.Stat(filepath.Join(dirPath, "lyric.lrc")); err == nil {
+		item.LyricURL = basePath + "/lyric.lrc"
+	}
+	coverCandidates := []string{"cover.jpg", "cover.jpeg", "cover.png", "cover.webp"}
+	for _, cover := range coverCandidates {
+		if _, err := os.Stat(filepath.Join(dirPath, cover)); err == nil {
+			item.CoverURL = basePath + "/" + cover
+			break
+		}
+	}
+	return item, true
+}
+
+func findExactCacheMusic(song, singer string) (MusicItem, bool) {
+	cacheDir := "./files/cache/music"
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
+		return MusicItem{}, false
+	}
+	wantSong := toLower(strings.TrimSpace(song))
+	wantSinger := toLower(strings.TrimSpace(singer))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		item, ok := buildCacheMusicItem(entry.Name())
+		if !ok {
+			continue
+		}
+		if toLower(strings.TrimSpace(item.Title)) != wantSong {
+			continue
+		}
+		if wantSinger != "" && toLower(strings.TrimSpace(item.Artist)) != wantSinger {
+			continue
+		}
+		return item, true
+	}
+	return MusicItem{}, false
+}
+
+func searchCacheMusic(query string) []MusicItem {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return []MusicItem{}
+	}
+	cacheDir := "./files/cache/music"
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
+		return []MusicItem{}
+	}
+	results := make([]MusicItem, 0, 20)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		item, ok := buildCacheMusicItem(entry.Name())
+		if !ok {
+			continue
+		}
+		if !containsIgnoreCase(entry.Name(), query) && !containsIgnoreCase(item.Title, query) && !containsIgnoreCase(item.Artist, query) {
+			continue
+		}
+		results = append(results, item)
+		if len(results) >= 20 {
+			break
+		}
+	}
+	return results
 }
 
 // Request and cache music from API
 func requestAndCacheMusic(song, singer string) MusicItem {
-	// Try different sources in priority order
+	cfg := readCacheConfig()
+	if !cfg.AutoCache {
+		return requestMusicNoCache(song, singer)
+	}
+
+	// 旧源优先
 	sources := []string{"kuwo", "netease", "migu", "baidu"}
 	for _, source := range sources {
 		item := YuafengAPIResponseHandler(source, song, singer)
@@ -109,51 +205,53 @@ func requestAndCacheMusic(song, singer string) MusicItem {
 			return item
 		}
 	}
+
+	// fallback: YouTube 作为补源，仅在旧源完全失败时才触发
+	item := requestAndCacheMusicFromYouTube(song, singer)
+	if item.Title != "" {
+		return item
+	}
 	return MusicItem{}
 }
 
 // 直接从远程URL流式转码（边下载边转码，超快！）
 func streamConvertAudio(inputURL, outputFile string) error {
-	fmt.Printf("[Info] Stream converting from URL (fast mode)\n")
+	fmt.Printf("[Info] Stream converting from URL to stable mp3 file\n")
 
-	// 先写入临时文件，完成后再重命名（避免读取到不完整的文件）
 	tempFile := outputFile + ".tmp"
 
-	// ffmpeg 直接读取远程 URL 并转码
-	// -t 600: 只下载前10分钟，减少80%下载量！
-	// 移除 reconnect 参数，避免兼容性问题
-	// 添加 -bufsize 以提高稳定性
 	cmd := exec.Command("ffmpeg", "-y",
-		"-t", "600",
 		"-i", inputURL,
-		"-threads", "0",
-		"-ac", "1", "-ar", "24000", "-b:a", "32k", "-q:a", "9",
-		"-bufsize", "64k",
+		"-vn",
+		"-ac", "1",
+		"-ar", "24000",
+		"-codec:a", "libmp3lame",
+		"-b:a", "32k",
+		"-write_xing", "0",
+		"-id3v2_version", "0",
 		tempFile)
 
 	err := cmd.Run()
 	if err != nil {
 		fmt.Printf("[Error] Stream convert failed: %v\n", err)
-		os.Remove(tempFile) // 清理临时文件
+		os.Remove(tempFile)
 		return err
 	}
 
-	// 检查生成的文件大小
 	fileInfo, err := os.Stat(tempFile)
 	if err != nil || fileInfo.Size() < 1024 {
-		fmt.Printf("[Error] Stream converted file is too small or empty\n")
+		fmt.Printf("[Error] Converted file too small or empty\n")
 		os.Remove(tempFile)
 		return fmt.Errorf("converted file is too small")
 	}
 
-	// 转码完成后重命名为最终文件
 	err = os.Rename(tempFile, outputFile)
 	if err != nil {
 		fmt.Printf("[Error] Failed to rename temp file: %v\n", err)
 		return err
 	}
 
-	fmt.Printf("[Success] Stream convert completed: %s\n", outputFile)
+	fmt.Printf("[Success] Stable mp3 generated: %s\n", outputFile)
 	return nil
 }
 
@@ -272,16 +370,19 @@ func GetDuration(filePath string) int {
 
 // Helper function to compress and segment audio file
 func compressAndSegmentAudio(inputFile, outputDir string) error {
-	fmt.Printf("[Info] Compress and segment audio file %s\n", inputFile)
-	// Compress music files
+	fmt.Printf("[Info] Compress and normalize audio file %s\n", inputFile)
 	outputFile := filepath.Join(outputDir, "music.mp3")
-	cmd := exec.Command("ffmpeg", "-i", inputFile, "-ac", "1", "-ab", "32k", "-ar", "24000", outputFile)
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	cmd := exec.Command("ffmpeg", "-y",
+		"-i", inputFile,
+		"-vn",
+		"-ac", "1",
+		"-ar", "24000",
+		"-codec:a", "libmp3lame",
+		"-b:a", "32k",
+		"-write_xing", "0",
+		"-id3v2_version", "0",
+		outputFile)
+	return cmd.Run()
 }
 
 // Helper function to obtain music data from local folder
@@ -294,58 +395,96 @@ func getLocalMusicItem(song, singer string) MusicItem {
 		return MusicItem{}
 	}
 
+	normalizedSong := toLower(strings.TrimSpace(song))
+	normalizedSinger := toLower(strings.TrimSpace(singer))
+	supported := map[string]bool{".mp3": true, ".wav": true, ".flac": true, ".aac": true, ".ogg": true, ".m4a": true}
+
 	for _, file := range files {
+		name := file.Name()
 		if file.IsDir() {
-			if singer == "" {
-				if strings.Contains(file.Name(), song) {
-					dirPath := filepath.Join(musicDir, file.Name())
-					// Extract artist and title from the directory name
-					parts := strings.SplitN(file.Name(), "-", 2)
-					var artist, title string
-					if len(parts) == 2 {
-						artist = parts[0]
-						title = parts[1]
-					} else {
-						title = file.Name()
-					}
-					basePath := "/cache/music/" + url.QueryEscape(file.Name())
-					return MusicItem{
-						Title:        title,
-						Artist:       artist,
-						CoverURL:     basePath + "/cover.jpg",
-						LyricURL:     basePath + "/lyric.lrc",
-						AudioFullURL: basePath + "/music.mp3",
-						AudioURL:     basePath + "/music.mp3",
-						M3U8URL:      basePath + "/music.m3u8",
-						Duration:     GetDuration(filepath.Join(dirPath, "music.mp3")),
-					}
-				}
+			match := strings.Contains(toLower(name), normalizedSong)
+			if normalizedSinger != "" {
+				match = match && strings.Contains(toLower(name), normalizedSinger)
+			}
+			if !match {
+				continue
+			}
+			dirPath := filepath.Join(musicDir, name)
+			parts := strings.SplitN(name, "-", 2)
+			var artist, title string
+			if len(parts) == 2 {
+				artist = parts[0]
+				title = parts[1]
 			} else {
-				if strings.Contains(file.Name(), song) && strings.Contains(file.Name(), singer) {
-					dirPath := filepath.Join(musicDir, file.Name())
-					// Extract artist and title from the directory name
-					parts := strings.SplitN(file.Name(), "-", 2)
-					var artist, title string
-					if len(parts) == 2 {
-						artist = parts[0]
-						title = parts[1]
-					} else {
-						title = file.Name()
-					}
-					basePath := "/cache/music/" + url.QueryEscape(file.Name())
-					return MusicItem{
-						Title:        title,
-						Artist:       artist,
-						CoverURL:     basePath + "/cover.jpg",
-						LyricURL:     basePath + "/lyric.lrc",
-						AudioFullURL: basePath + "/music.mp3",
-						AudioURL:     basePath + "/music.mp3",
-						M3U8URL:      basePath + "/music.m3u8",
-						Duration:     GetDuration(filepath.Join(dirPath, "music.mp3")),
-					}
-				}
+				title = name
+			}
+			basePath := "/cache/music/" + url.QueryEscape(name)
+			return MusicItem{
+				Title:        title,
+				Artist:       artist,
+				Filename:     name + ".mp3",
+				CoverURL:     basePath + "/cover.jpg",
+				LyricURL:     basePath + "/lyric.lrc",
+				AudioFullURL: basePath + "/music.mp3",
+				AudioURL:     basePath + "/music.mp3",
+				M3U8URL:      basePath + "/music.m3u8",
+				Duration:     GetDuration(filepath.Join(dirPath, "music.mp3")),
+				FromCache:    true,
+				SourceType:   "legacy_local_dir",
 			}
 		}
+
+		ext := strings.ToLower(filepath.Ext(name))
+		if !supported[ext] {
+			continue
+		}
+		base := strings.TrimSuffix(name, ext)
+		artist := "本地上传"
+		title := base
+		if strings.Contains(base, "-") {
+			parts := strings.SplitN(base, "-", 2)
+			artist = strings.TrimSpace(parts[0])
+			title = strings.TrimSpace(parts[1])
+		}
+		match := strings.Contains(toLower(title), normalizedSong) || strings.Contains(toLower(base), normalizedSong)
+		if normalizedSinger != "" {
+			match = match && (strings.Contains(toLower(artist), normalizedSinger) || strings.Contains(toLower(base), normalizedSinger))
+		}
+		if !match {
+			continue
+		}
+		basePath := "/music/" + url.PathEscape(name)
+		return MusicItem{
+			Title:        title,
+			Artist:       artist,
+			Filename:     name,
+			AudioFullURL: basePath,
+			AudioURL:     basePath,
+			Duration:     GetDuration(filepath.Join(musicDir, name)),
+			FromCache:    false,
+			SourceType:   "local",
+		}
+	}
+	return MusicItem{}
+}
+
+func requestMusicNoCache(song, singer string) MusicItem {
+	// 自动缓存关闭时，优先返回直链，不落盘；YouTube 仍保持原有缓存式补源逻辑，避免返回不可播 URL。
+	sources := []string{"kuwo", "netease", "migu", "baidu"}
+	for _, source := range sources {
+		item := YuafengAPIResponseHandlerNoCache(source, song, singer)
+		if item.Title != "" {
+			item.FromCache = false
+			if item.SourceType == "" {
+				item.SourceType = source
+			}
+			return item
+		}
+	}
+
+	item := requestAndCacheMusicFromYouTube(song, singer)
+	if item.Title != "" {
+		return item
 	}
 	return MusicItem{}
 }

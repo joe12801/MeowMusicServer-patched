@@ -6,6 +6,7 @@ import "time"
 type MusicItem struct {
 	Title        string `json:"title"`
 	Artist       string `json:"artist"`
+	Filename     string `json:"filename,omitempty"`
 	AudioURL     string `json:"audio_url"`
 	AudioFullURL string `json:"audio_full_url"`
 	M3U8URL      string `json:"m3u8_url"`
@@ -13,6 +14,7 @@ type MusicItem struct {
 	CoverURL     string `json:"cover_url"`
 	Duration     int    `json:"duration"`
 	FromCache    bool   `json:"from_cache"`
+	SourceType   string `json:"source_type,omitempty"`
 	IP           string `json:"ip"`
 }
 

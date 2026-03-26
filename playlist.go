@@ -709,6 +709,13 @@ func HandleGetUserPlaylists(w http.ResponseWriter, r *http.Request) {
 	}
 
 	playlists := playlistManager.GetUserPlaylists(userID)
+	if len(playlists) == 0 {
+		playlistManager.InitializeUserPlaylists(userID)
+		playlists = playlistManager.GetUserPlaylists(userID)
+	}
+	if playlists == nil {
+		playlists = []*UserPlaylist{}
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(playlists)
@@ -731,6 +738,10 @@ func HandleAddSongToUserPlaylist(w http.ResponseWriter, r *http.Request) {
 	if playlistID == "" {
 		http.Error(w, "Missing playlist_id parameter", http.StatusBadRequest)
 		return
+	}
+
+	if len(playlistManager.GetUserPlaylists(userID)) == 0 {
+		playlistManager.InitializeUserPlaylists(userID)
 	}
 
 	body, err := io.ReadAll(r.Body)

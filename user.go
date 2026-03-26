@@ -17,12 +17,12 @@ import (
 
 // UserStore manages user data
 type UserStore struct {
-	mu       sync.RWMutex
-	Users    map[string]*User // key: user ID
+	mu        sync.RWMutex
+	Users     map[string]*User  // key: user ID
 	Usernames map[string]string // key: username, value: user ID
-	Emails   map[string]string // key: email, value: user ID
-	Sessions map[string]string // key: session token, value: user ID
-	filePath string
+	Emails    map[string]string // key: email, value: user ID
+	Sessions  map[string]string // key: session token, value: user ID
+	filePath  string
 }
 
 var userStore *UserStore
@@ -57,9 +57,17 @@ func (us *UserStore) loadFromFile() error {
 		return err
 	}
 
+	var wrapped userStoreFile
 	var storageUsers []*userStorage
-	if err := json.Unmarshal(data, &storageUsers); err != nil {
-		return err
+	if err := json.Unmarshal(data, &wrapped); err == nil && wrapped.Users != nil {
+		storageUsers = wrapped.Users
+		if wrapped.Sessions != nil {
+			us.Sessions = wrapped.Sessions
+		}
+	} else {
+		if err := json.Unmarshal(data, &storageUsers); err != nil {
+			return err
+		}
 	}
 
 	// Convert from storage format to User struct and rebuild indexes
@@ -90,6 +98,11 @@ type userStorage struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type userStoreFile struct {
+	Users    []*userStorage    `json:"users"`
+	Sessions map[string]string `json:"sessions"`
+}
+
 // saveToFile saves users to JSON file
 // NOTE: Caller must hold the lock!
 func (us *UserStore) saveToFile() error {
@@ -106,7 +119,12 @@ func (us *UserStore) saveToFile() error {
 		})
 	}
 
-	data, err := json.MarshalIndent(users, "", "  ")
+	wrapped := userStoreFile{
+		Users:    users,
+		Sessions: us.Sessions,
+	}
+
+	data, err := json.MarshalIndent(wrapped, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -195,7 +213,11 @@ func (us *UserStore) AuthenticateUser(username, password string) (*User, string,
 	token := generateToken()
 	us.mu.Lock()
 	us.Sessions[token] = user.ID
+	saveErr := us.saveToFile()
 	us.mu.Unlock()
+	if saveErr != nil {
+		return nil, "", saveErr
+	}
 
 	return user, token, nil
 }
@@ -223,6 +245,7 @@ func (us *UserStore) Logout(token string) {
 	us.mu.Lock()
 	defer us.mu.Unlock()
 	delete(us.Sessions, token)
+	_ = us.saveToFile()
 }
 
 // HTTP Handlers
@@ -230,7 +253,7 @@ func (us *UserStore) Logout(token string) {
 // HandleRegister handles user registration
 func HandleRegister(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[API] Register request received from %s\n", r.RemoteAddr)
-	
+
 	if r.Method != http.MethodPost {
 		fmt.Printf("[API] Register: Method not allowed: %s\n", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -282,7 +305,21 @@ func HandleRegister(w http.ResponseWriter, r *http.Request) {
 	token := generateToken()
 	userStore.mu.Lock()
 	userStore.Sessions[token] = user.ID
+	if err := userStore.saveToFile(); err != nil {
+		userStore.mu.Unlock()
+		http.Error(w, "Failed to persist session", http.StatusInternalServerError)
+		return
+	}
 	userStore.mu.Unlock()
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   30 * 24 * 3600,
+	})
 
 	// Initialize user's favorite playlist
 	if playlistManager != nil {
@@ -302,7 +339,7 @@ func HandleRegister(w http.ResponseWriter, r *http.Request) {
 // HandleLogin handles user login
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[API] Login request received from %s\n", r.RemoteAddr)
-	
+
 	if r.Method != http.MethodPost {
 		fmt.Printf("[API] Login: Method not allowed: %s\n", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -338,6 +375,15 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("[Info] User logged in: %s\n", user.Username)
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   30 * 24 * 3600,
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(AuthResponse{
 		Token: token,
@@ -362,6 +408,14 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	token = strings.TrimPrefix(token, "Bearer ")
 
 	userStore.Logout(token)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
@@ -373,13 +427,15 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 // HandleGetCurrentUser returns current user info
 func HandleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
+	if token != "" {
+		token = strings.TrimPrefix(token, "Bearer ")
+	} else if cookie, err := r.Cookie("session_token"); err == nil {
+		token = cookie.Value
+	}
 	if token == "" {
 		http.Error(w, "Missing authorization token", http.StatusUnauthorized)
 		return
 	}
-
-	// Remove "Bearer " prefix if present
-	token = strings.TrimPrefix(token, "Bearer ")
 
 	user, err := userStore.GetUserByToken(token)
 	if err != nil {
@@ -419,10 +475,10 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				userID := userStore.GetUserIDByUsername(device.Username)
 				if userID != "" {
 					r.Header.Set("X-User-ID", userID)
-					
+
 					// 更新设备最后在线时间
 					dm.UpdateLastSeen(device.MAC)
-					
+
 					next(w, r)
 					return
 				}
@@ -457,7 +513,7 @@ func (us *UserStore) GetUserIDByUsername(username string) string {
 	us.mu.RLock()
 	defer us.mu.RUnlock()
 
-	return us.Usernames[username]
+	return us.Usernames[strings.ToLower(username)]
 }
 
 // GetUsernameByToken 通过session token获取用户名

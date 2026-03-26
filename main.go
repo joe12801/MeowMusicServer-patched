@@ -41,36 +41,50 @@ func main() {
 	http.HandleFunc("/", indexHandler)
 	http.HandleFunc("/stream_pcm", apiHandler)
 	http.HandleFunc("/stream_live", streamLiveHandler) // 实时流式转码，边下载边播放
-	http.HandleFunc("/api/search", HandleSearch) // Search API
-	
+	http.HandleFunc("/api/search", HandleSearch)       // Search API
+	http.HandleFunc("/api/xiaomusic/stream", HandleXiaoMusicStream)
+	http.HandleFunc("/api/xiaomusic/lyric", HandleXiaoMusicLyric)
+
 	// Legacy favorite API (backward compatible)
 	http.HandleFunc("/api/favorite/add", HandleAddToFavorite)
 	http.HandleFunc("/api/favorite/remove", HandleRemoveFromFavorite)
 	http.HandleFunc("/api/favorite/list", HandleGetFavorites)
 	http.HandleFunc("/api/favorite/check", HandleCheckFavorite)
-	
+
 	// User authentication API
 	http.HandleFunc("/api/auth/register", HandleRegister)
 	http.HandleFunc("/api/auth/login", HandleLogin)
 	http.HandleFunc("/api/auth/logout", HandleLogout)
 	http.HandleFunc("/api/auth/me", HandleGetCurrentUser)
-	
+	http.HandleFunc("/api/upload-music", AuthMiddleware(HandleUploadMusic))
+	http.HandleFunc("/api/local-music", HandleLocalMusicList)
+	http.HandleFunc("/api/local-music/delete", AuthMiddleware(HandleDeleteLocalMusic))
+	http.HandleFunc("/api/local-music/rename", AuthMiddleware(HandleRenameLocalMusic))
+	http.HandleFunc("/api/cache-config", AuthMiddleware(HandleCacheConfig))
+	http.HandleFunc("/api/cache-music", HandleCacheMusicList)
+	http.HandleFunc("/api/cache-music/promote", AuthMiddleware(HandlePromoteCacheMusic))
+	http.HandleFunc("/api/cache-music/delete", AuthMiddleware(HandleDeleteCacheMusic))
+
+	// Admin YouTube cookie API (requires authentication)
+	http.HandleFunc("/api/admin/youtube-cookie/status", AuthMiddleware(HandleYouTubeCookieStatus))
+	http.HandleFunc("/api/admin/youtube-cookie/update", AuthMiddleware(HandleYouTubeCookieUpdate))
+
 	// User playlist API (requires authentication)
 	http.HandleFunc("/api/user/playlists", AuthMiddleware(HandleGetUserPlaylists))
 	http.HandleFunc("/api/user/playlists/create", AuthMiddleware(HandleCreateUserPlaylist))
 	http.HandleFunc("/api/user/playlists/add-song", AuthMiddleware(HandleAddSongToUserPlaylist))
 	http.HandleFunc("/api/user/playlists/remove-song", AuthMiddleware(HandleRemoveSongFromUserPlaylist))
 	http.HandleFunc("/api/user/playlists/delete", AuthMiddleware(HandleDeleteUserPlaylist))
-	
+
 	// ESP32 Device management API
 	http.HandleFunc("/api/device/generate-code", AuthMiddleware(GenerateBindingCodeHandler)) // 生成绑定码（需要登录）
-	http.HandleFunc("/api/device/bind-direct", DirectBindDeviceHandler)                       // Web端直接绑定设备（需要登录）
-	http.HandleFunc("/api/device/list", ListUserDevicesHandler)                               // 列出用户设备（需要登录）
-	http.HandleFunc("/api/device/unbind", UnbindDeviceHandler)                                // 解绑设备（需要登录）
-	http.HandleFunc("/api/esp32/bind", BindDeviceHandler)                                     // ESP32绑定设备
-	http.HandleFunc("/api/esp32/verify", VerifyDeviceHandler)                                 // 验证设备Token
-	http.HandleFunc("/api/esp32/sync", SyncDeviceHandler)                                     // ESP32同步Token（用MAC地址）
-	
+	http.HandleFunc("/api/device/bind-direct", DirectBindDeviceHandler)                      // Web端直接绑定设备（需要登录）
+	http.HandleFunc("/api/device/list", ListUserDevicesHandler)                              // 列出用户设备（需要登录）
+	http.HandleFunc("/api/device/unbind", UnbindDeviceHandler)                               // 解绑设备（需要登录）
+	http.HandleFunc("/api/esp32/bind", BindDeviceHandler)                                    // ESP32绑定设备
+	http.HandleFunc("/api/esp32/verify", VerifyDeviceHandler)                                // 验证设备Token
+	http.HandleFunc("/api/esp32/sync", SyncDeviceHandler)                                    // ESP32同步Token（用MAC地址）
+
 	// Device binding page
 	http.HandleFunc("/device-bind", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./theme/device-bind.html")
@@ -79,7 +93,7 @@ func main() {
 	http.HandleFunc("/device-bin", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/device-bind", http.StatusMovedPermanently)
 	})
-	
+
 	fmt.Printf("[Info] %s Started.\n喵波音律-音乐家园QQ交流群:865754861\n", TAG)
 	fmt.Printf("[Info] Starting music server at port %s\n", port)
 
