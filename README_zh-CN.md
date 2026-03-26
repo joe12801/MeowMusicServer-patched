@@ -1,76 +1,73 @@
 # MeowMusicServer Patched
 
-> This is a cleaned public patched version prepared for release.
-> Changes include preferring stable cached `music.mp3` over `stream_live` for device playback stability.
+这是一个面向 **小智 / ESP32 嵌入式设备** 的 MeowMusicServer 清理发布版与稳定性补丁版。
 
-# Meow 为嵌入式设备制作的音乐串流服务 v2.0
-[English](README.md) | [简体中文](README_zh-CN.md)
+## 这个补丁版改了什么
+这个版本重点解决的是：
 
-MeowEmbeddedMusicServer 是一个为嵌入式设备制作的音乐串流服务。
-它可以播放来自你的服务器的音乐，也可以为你的嵌入式设备提供音乐流媒体服务。
-现在支持完整的用户系统和个人歌单管理！
+> **嵌入式设备播放在线音乐时，优先使用稳定缓存后的 `music.mp3`，而不是优先使用 `stream_live` 实时流。**
 
-## ✨ 新版特性 (v2.0)
+### 主要改动
+- 默认优先返回稳定缓存后的 `music.mp3`
+- 降低嵌入式设备端出现 chunk 解析失败、MP3 同步字错误、播放几秒后断流等问题的概率
+- 保留 `stream_live` 作为调试/备用路径，而不是默认播放入口
+- 清理了发布时不应包含的本地运行痕迹
 
-### 🔐 用户系统
-- ✅ 用户注册和登录
-- ✅ 安全的密码加密存储
-- ✅ 基于Token的会话管理
+## 适合谁用
+如果你遇到以下问题，这个版本更适合你：
+- 小智能查到歌，但播放几秒就断
+- 设备端日志出现 chunk 解析失败
+- 设备端日志出现 MP3 sync word 找不到
+- 服务端已经能找到歌曲和音频链接，但设备端播放不稳
 
-### 🎵 个人音乐空间
-- ✅ 每个用户独立的"我喜欢"歌单
-- ✅ 创建自定义歌单
-- ✅ 添加/删除歌曲到歌单
-- ✅ 在线搜索和播放音乐
+## 当前发布说明
+这是一个 **clean public 版**，已去除或尽量避免：
+- `.env`
+- 运行缓存
+- 编译产物
+- 敏感本地部署文件
+- 明确的私有设备/会话凭据
 
-### 💎 现代化界面
-- ✅ React + TailwindCSS 美观UI
-- ✅ 响应式设计，支持移动设备
-- ✅ 类似QQ音乐的用户体验
+## 与原版的关系
+此项目基于上游 MeowMusicServer 的结构和思路整理而来，当前版本主要强调：
+- 更适合嵌入式设备播放
+- 更适合作为公开分享的 clean 版本
 
-### 🎯 核心功能
-- ✅ 在线听音乐
-- ✅ 为嵌入式设备提供音乐串流服务
-- ✅ 管理音乐库
-- ✅ 搜索和缓存音乐
-- ✅ 个人歌单管理
-
-## 🚀 快速开始
-
-### Windows 用户
-
-1. **确保已安装 Go**（1.19或更高版本）
-2. **双击启动**：`start.bat`
-3. **访问应用**：http://localhost:2233/app
-
-### Linux/macOS 用户
-
+## 快速启动
 ```bash
-# 添加执行权限
 chmod +x start.sh
-
-# 启动服务器
 ./start.sh
 ```
 
-然后访问：http://localhost:2233/app
+然后访问：
+```text
+http://localhost:2233/app
+```
 
-### 详细文档
+## 推荐验证方法
+启动后建议测试：
+```bash
+curl "http://127.0.0.1:2233/stream_pcm?song=晴天&singer=周杰伦"
+```
 
-- 📖 **[快速开始](快速开始.md)** - 3分钟快速部署
-- 📚 **[本地部署指南](本地部署指南.md)** - 详细部署步骤
-- 🔧 **[用户系统使用指南](USER_SYSTEM_README.md)** - API文档
-- ✨ **[新功能说明](新功能说明.md)** - 功能概览
+重点看返回的：
+- `audio_url`
+- `audio_full_url`
 
-# 教程文档
-相关文档正在编写中...
+是否优先指向：
+```text
+/cache/music/<歌手>-<歌名>/music.mp3
+```
+而不是：
+```text
+/stream_live?... 
+```
 
-## Star 历史
+## 文档
+- [README.md](./README.md)
+- [快速开始](./快速开始.md)
+- [本地部署指南](./本地部署指南.md)
+- [USER_SYSTEM_README.md](./USER_SYSTEM_README.md)
 
-<a href="https://star-history.com/#OmniX-Space/MeowMusicServer&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=OmniX-Space/MeowMusicServer&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=OmniX-Space/MeowMusicServer&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=OmniX-Space/MeowMusicServer&type=Date" />
- </picture>
-</a>
+## License
+默认遵循上游项目许可证，除非仓库中另有说明。

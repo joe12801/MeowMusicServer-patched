@@ -1,28 +1,63 @@
 # MeowMusicServer Patched
 
-> This is a cleaned public patched version prepared for release.
-> Changes include preferring stable cached `music.mp3` over `stream_live` for device playback stability.
+A cleaned public patched version of MeowMusicServer for XiaoZhi / embedded devices.
 
-# MeowMusicServer
-[English](README.md) | [简体中文](README_zh-CN.md)
+## What changed in this patched version
+This fork focuses on **playback stability for embedded devices**.
 
-Your Embedded Music Server for you.
+### Main changes
+- Prefer **stable cached `music.mp3`** over `stream_live` as the default playback target
+- Reduce the chance of chunk parsing issues on embedded devices
+- Keep `stream_live` as a fallback / debug path instead of the primary playback path
+- Remove sensitive local deployment artifacts before publishing
 
-## Features
-- Play music from your server
-- Music streaming for your embedded devices
-- Music library management
-- Music search and cache
+## Recommended use case
+Use this patched version if your XiaoZhi / ESP32-based device:
+- can search songs correctly,
+- can get valid audio links,
+- but playback becomes unstable, cuts off after a few seconds, or fails to decode streaming chunks.
 
-# Tutorial document
-Docs comming soon.
+## Current publishing notes
+This repository is a **clean public version** prepared for release:
+- no `.env`
+- no runtime cache
+- no build artifacts
+- no real private device/session secrets intentionally included
 
-## Star History
+## Upstream origin
+Original project idea and structure are based on the upstream MeowMusicServer project.
 
-<a href="https://star-history.com/#OmniX-Space/MeowMusicServer&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=OmniX-Space/MeowMusicServer&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=OmniX-Space/MeowMusicServer&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=OmniX-Space/MeowMusicServer&type=Date" />
- </picture>
-</a>
+## Quick start
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+Then open:
+```text
+http://localhost:2233/app
+```
+
+## Recommended validation
+After startup, test:
+```bash
+curl "http://127.0.0.1:2233/stream_pcm?song=晴天&singer=周杰伦"
+```
+
+Check that returned `audio_url` / `audio_full_url` prefer:
+```text
+/cache/music/<artist>-<song>/music.mp3
+```
+instead of:
+```text
+/stream_live?... 
+```
+
+## Docs
+- [README_zh-CN.md](./README_zh-CN.md)
+- [快速开始](./快速开始.md)
+- [本地部署指南](./本地部署指南.md)
+- [USER_SYSTEM_README.md](./USER_SYSTEM_README.md)
+
+## License
+Follow the upstream project license unless otherwise stated.
