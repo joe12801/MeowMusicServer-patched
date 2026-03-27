@@ -42,8 +42,6 @@ func main() {
 	http.HandleFunc("/stream_pcm", apiHandler)
 	http.HandleFunc("/stream_live", streamLiveHandler) // 实时流式转码，边下载边播放
 	http.HandleFunc("/api/search", HandleSearch)       // Search API
-	http.HandleFunc("/api/xiaomusic/stream", HandleXiaoMusicStream)
-	http.HandleFunc("/api/xiaomusic/lyric", HandleXiaoMusicLyric)
 
 	// Legacy favorite API (backward compatible)
 	http.HandleFunc("/api/favorite/add", HandleAddToFavorite)

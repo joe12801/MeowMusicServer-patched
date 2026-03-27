@@ -78,9 +78,6 @@ func searchAllResults(query string, r *http.Request) []SearchResult {
 	if len(results) < 20 {
 		appendUnique(convertMusicItemsToSearchResults(searchFromAPI(query)))
 	}
-	if len(results) < 20 {
-		appendUnique(SearchFromXiaoMusic(query, r))
-	}
 
 	if len(results) > 20 {
 		results = results[:20]
