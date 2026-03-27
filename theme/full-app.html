@@ -2119,13 +2119,46 @@
             return song.filename || song.Filename || '';
         }
 
+        function getSongDownloadUrl(song) {
+            return song.audio_full_url || song.AudioFullURL || song.audio_url || song.AudioURL || song.url || song.link || song.URL || '';
+        }
+
+        function getSongDownloadName(song) {
+            const title = String(song.title || song.Title || '未知歌曲').trim() || '未知歌曲';
+            const artist = String(song.artist || song.Artist || '').trim();
+            const rawName = artist ? `${artist} - ${title}` : title;
+            const safeName = rawName.replace(/[\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim();
+            return `${safeName || 'music'}.mp3`;
+        }
+
+        function downloadSong(song) {
+            if (!song) {
+                alert('未找到可下载的歌曲');
+                return;
+            }
+            const normalizedSong = normalizeSong(song);
+            const downloadUrl = getSongDownloadUrl(song) || normalizedSong.url;
+            if (!downloadUrl) {
+                alert('当前歌曲没有可下载的音频链接');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = getSongDownloadName(song);
+            link.rel = 'noopener';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         function normalizeSong(song) {
             return {
                 title: song.title || song.Title || '未知歌曲',
                 artist: song.artist || song.Artist || '未知艺术家',
                 filename: formatSongFileName(song),
                 folder: song.folder || '',
-                url: song.url || song.link || song.audio_url || song.audio_full_url || song.AudioURL || song.AudioFullURL || song.URL || '',
+                url: getSongDownloadUrl(song),
                 lyric_url: song.lyric_url || song.LyricURL || song.lyricUrl || '',
                 cover_url: song.cover_url || song.CoverURL || song.coverUrl || ''
             };
@@ -2324,6 +2357,7 @@
                         <button class="btn-icon btn-play" onclick='playSong(${JSON.stringify(song)})'>播放</button>
                         <button class="btn-icon btn-add" onclick='addToFavorite(${JSON.stringify(song)})'>喜欢</button>
                         <button class="btn-icon btn-add" onclick='showPlaylistPicker(${JSON.stringify(song)}, "search")'>加入歌单</button>
+                        <button class="btn-icon btn-theme-toggle" onclick='downloadSong(${JSON.stringify(song)})'>下载</button>
                     </div>
                 </div>
             `).join('') + '</div>' + buildPagination(searchResultCache.length, currentPage, 'search');
@@ -2888,6 +2922,7 @@
                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <button class="btn btn-play" onclick="playSong(localMusicCache[${index}])">播放</button>
                             <button class="btn btn-add" onclick="showPlaylistPicker(localMusicCache[${index}], 'local')">加入歌单</button>
+                            <button class="btn btn-theme-toggle" onclick="downloadSong(localMusicCache[${index}])">下载</button>
                             <button class="btn btn-theme-toggle" onclick='renameLocalMusic(${JSON.stringify('___PLACEHOLDER___')})'>重命名</button>
                             <button class="btn btn-logout" onclick='deleteLocalMusic(${JSON.stringify('___PLACEHOLDER___')})'>删除</button>
                         </div>
@@ -2916,6 +2951,7 @@
                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <button class="btn btn-play" onclick="playSong(cacheMusicCache[${index}])">播放</button>
                             <button class="btn btn-add" onclick="showPlaylistPicker(cacheMusicCache[${index}], 'cache')">加入歌单</button>
+                            <button class="btn btn-theme-toggle" onclick="downloadSong(cacheMusicCache[${index}])">下载</button>
                             <button class="btn btn-theme-toggle" onclick='promoteCacheMusic(${JSON.stringify('___PLACEHOLDER___')})'>转入本地</button>
                             <button class="btn btn-logout" onclick='deleteCacheMusic(${JSON.stringify('___PLACEHOLDER___')})'>删除缓存</button>
                         </div>
@@ -3365,6 +3401,7 @@
                         </div>
                         <div class="inline-actions">
                             <button class="btn btn-play" onclick='playSong(${JSON.stringify(song)})'>播放</button>
+                            <button class="btn btn-theme-toggle" onclick='downloadSong(${JSON.stringify(song)})'>下载</button>
                             <button class="btn btn-logout" onclick='removeSongFromPlaylist(${JSON.stringify(playlist.id)}, ${JSON.stringify(song.title || song.Title || '')}, ${JSON.stringify(song.artist || song.Artist || '')})'>移除</button>
                         </div>
                     </div>
