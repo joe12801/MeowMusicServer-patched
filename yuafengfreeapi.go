@@ -121,7 +121,8 @@ parseSuccess:
 		return MusicItem{}
 	}
 
-	dirName := fmt.Sprintf("./files/cache/music/%s-%s", response.Data.Singer, response.Data.Song)
+	folder := cacheFolderBySource("legacy", response.Data.Singer, response.Data.Song)
+	dirName := cacheDirPath(folder)
 	err = os.MkdirAll(dirName, 0755)
 	if err != nil {
 		fmt.Println("[Error] Error creating directory:", err)
@@ -198,7 +199,7 @@ parseSuccess:
 		return MusicItem{}
 	}
 
-	basePath := "/cache/music/" + url.QueryEscape(response.Data.Singer+"-"+response.Data.Song)
+	basePath := cacheBaseURL(folder)
 	return MusicItem{
 		Title:        response.Data.Song,
 		Artist:       response.Data.Singer,

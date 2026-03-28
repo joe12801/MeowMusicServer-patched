@@ -77,45 +77,44 @@ func readSources() []Source {
 	return sources
 }
 
-// Read music from cache folder path like ./files/cache/music/Artist-Song
+// Read music from cache folder path like ./files/cache/music/Artist-Song or ./files/cache/music/<source>/Artist-Song
 func readFromCache(path string) (MusicItem, bool) {
 	info, err := os.Stat(path)
 	if err != nil || !info.IsDir() {
 		return MusicItem{}, false
 	}
+	rel, err := filepath.Rel(cacheMusicRoot, path)
+	if err == nil {
+		if item, ok := buildCacheMusicItem(filepath.ToSlash(rel)); ok {
+			return item, true
+		}
+	}
 	return buildCacheMusicItem(filepath.Base(path))
 }
 
 func buildCacheMusicItem(folder string) (MusicItem, bool) {
-	folder = strings.TrimSpace(folder)
+	folder = resolveCacheFolder(folder)
 	if folder == "" {
 		return MusicItem{}, false
 	}
 
-	dirPath := filepath.Join("./files/cache/music", folder)
+	dirPath := cacheDirPath(folder)
 	mp3Path := filepath.Join(dirPath, "music.mp3")
 	if info, err := os.Stat(mp3Path); err != nil || info.IsDir() || info.Size() < 1024 {
 		return MusicItem{}, false
 	}
 
-	artist := "缓存音乐"
-	title := folder
-	if strings.Contains(folder, "-") {
-		parts := strings.SplitN(folder, "-", 2)
-		artist = strings.TrimSpace(parts[0])
-		title = strings.TrimSpace(parts[1])
-	}
-
-	basePath := "/cache/music/" + url.PathEscape(folder)
+	sourceType, artist, title, leaf := parseCacheFolder(folder)
+	basePath := cacheBaseURL(folder)
 	item := MusicItem{
 		Title:        title,
 		Artist:       artist,
-		Filename:     folder + ".mp3",
+		Filename:     leaf + ".mp3",
 		AudioURL:     basePath + "/music.mp3",
 		AudioFullURL: basePath + "/music.mp3",
 		Duration:     GetDuration(mp3Path),
 		FromCache:    true,
-		SourceType:   "cache",
+		SourceType:   sourceType,
 	}
 	if _, err := os.Stat(filepath.Join(dirPath, "music.m3u8")); err == nil {
 		item.M3U8URL = basePath + "/music.m3u8"
@@ -134,18 +133,10 @@ func buildCacheMusicItem(folder string) (MusicItem, bool) {
 }
 
 func findExactCacheMusic(song, singer string) (MusicItem, bool) {
-	cacheDir := "./files/cache/music"
-	entries, err := os.ReadDir(cacheDir)
-	if err != nil {
-		return MusicItem{}, false
-	}
 	wantSong := toLower(strings.TrimSpace(song))
 	wantSinger := toLower(strings.TrimSpace(singer))
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		item, ok := buildCacheMusicItem(entry.Name())
+	for _, folder := range listCacheFolders() {
+		item, ok := buildCacheMusicItem(folder)
 		if !ok {
 			continue
 		}
@@ -165,26 +156,197 @@ func searchCacheMusic(query string) []MusicItem {
 	if query == "" {
 		return []MusicItem{}
 	}
-	cacheDir := "./files/cache/music"
-	entries, err := os.ReadDir(cacheDir)
-	if err != nil {
-		return []MusicItem{}
-	}
 	results := make([]MusicItem, 0, 20)
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		item, ok := buildCacheMusicItem(entry.Name())
+	for _, folder := range listCacheFolders() {
+		item, ok := buildCacheMusicItem(folder)
 		if !ok {
 			continue
 		}
-		if !containsIgnoreCase(entry.Name(), query) && !containsIgnoreCase(item.Title, query) && !containsIgnoreCase(item.Artist, query) {
+		if !containsIgnoreCase(folder, query) && !containsIgnoreCase(item.Title, query) && !containsIgnoreCase(item.Artist, query) {
 			continue
 		}
 		results = append(results, item)
 		if len(results) >= 20 {
 			break
+		}
+	}
+	return results
+}
+
+func getSourceStrategy() string {
+	cfg := readCacheConfig()
+	strategy := strings.ToLower(strings.TrimSpace(cfg.SourceStrategy))
+	switch strategy {
+	case "cache", "local", "legacy", "youtube":
+		return strategy
+	default:
+		return "cache"
+	}
+}
+
+func requestLegacyDirect(song, singer string, autoCache bool) MusicItem {
+	sources := []string{"kuwo", "netease", "migu", "baidu"}
+	for _, source := range sources {
+		var item MusicItem
+		if autoCache {
+			item = YuafengAPIResponseHandler(source, song, singer)
+		} else {
+			item = YuafengAPIResponseHandlerNoCache(source, song, singer)
+			if item.Title != "" {
+				item.FromCache = false
+				if item.SourceType == "" {
+					item.SourceType = source
+				}
+			}
+		}
+		if item.Title != "" {
+			return item
+		}
+	}
+	return MusicItem{}
+}
+
+func resolveMusicByStrategy(song, singer string) MusicItem {
+	strategy := getSourceStrategy()
+	cfg := readCacheConfig()
+	switch strategy {
+	case "local":
+		if item := getLocalMusicItem(song, singer); item.Title != "" {
+			return item
+		}
+		if item, ok := findExactCacheMusic(song, singer); ok {
+			return item
+		}
+		if item := requestLegacyDirect(song, singer, cfg.AutoCache); item.Title != "" {
+			return item
+		}
+		if item := requestAndCacheMusicFromYouTube(song, singer); item.Title != "" {
+			return item
+		}
+		return MusicItem{}
+	case "legacy":
+		if item := requestLegacyDirect(song, singer, cfg.AutoCache); item.Title != "" {
+			return item
+		}
+		if item, ok := findExactCacheMusic(song, singer); ok {
+			return item
+		}
+		if item := getLocalMusicItem(song, singer); item.Title != "" {
+			return item
+		}
+		if item := requestAndCacheMusicFromYouTube(song, singer); item.Title != "" {
+			return item
+		}
+		return MusicItem{}
+	case "youtube":
+		if item := requestAndCacheMusicFromYouTube(song, singer); item.Title != "" {
+			return item
+		}
+		if item, ok := findExactCacheMusic(song, singer); ok {
+			return item
+		}
+		if item := getLocalMusicItem(song, singer); item.Title != "" {
+			return item
+		}
+		if item := requestLegacyDirect(song, singer, cfg.AutoCache); item.Title != "" {
+			return item
+		}
+		return MusicItem{}
+	case "cache":
+		fallthrough
+	default:
+		if item, ok := findExactCacheMusic(song, singer); ok {
+			return item
+		}
+		if item := getLocalMusicItem(song, singer); item.Title != "" {
+			return item
+		}
+		if item := requestLegacyDirect(song, singer, cfg.AutoCache); item.Title != "" {
+			return item
+		}
+		if item := requestAndCacheMusicFromYouTube(song, singer); item.Title != "" {
+			return item
+		}
+		return MusicItem{}
+	}
+}
+
+func appendSearchByStrategy(results *[]MusicItem, seen map[string]bool, items []MusicItem, limit int) {
+	for _, item := range items {
+		key := toLower(item.Title + "||" + item.Artist)
+		if item.Title == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		*results = append(*results, item)
+		if len(*results) >= limit {
+			return
+		}
+	}
+}
+
+func searchUnifiedByStrategy(query string, limit int) []MusicItem {
+	results := make([]MusicItem, 0, limit)
+	seen := map[string]bool{}
+	strategy := getSourceStrategy()
+	addCache := func() { appendSearchByStrategy(&results, seen, searchCacheMusic(query), limit) }
+	addLocal := func() { appendSearchByStrategy(&results, seen, searchLocalMusic(query), limit) }
+	addLegacy := func() {
+		appendSearchByStrategy(&results, seen, searchFromSources(query), limit)
+		if len(results) < limit {
+			appendSearchByStrategy(&results, seen, searchFromAPI(query), limit)
+		}
+	}
+	addYoutube := func() {
+		item := requestAndCacheMusicFromYouTube(query, "")
+		if item.Title != "" {
+			appendSearchByStrategy(&results, seen, []MusicItem{item}, limit)
+		}
+	}
+	switch strategy {
+	case "local":
+		addLocal()
+		if len(results) < limit {
+			addCache()
+		}
+		if len(results) < limit {
+			addLegacy()
+		}
+		if len(results) < limit {
+			addYoutube()
+		}
+	case "legacy":
+		addLegacy()
+		if len(results) < limit {
+			addCache()
+		}
+		if len(results) < limit {
+			addLocal()
+		}
+		if len(results) < limit {
+			addYoutube()
+		}
+	case "youtube":
+		addYoutube()
+		if len(results) < limit {
+			addCache()
+		}
+		if len(results) < limit {
+			addLocal()
+		}
+		if len(results) < limit {
+			addLegacy()
+		}
+	default:
+		addCache()
+		if len(results) < limit {
+			addLocal()
+		}
+		if len(results) < limit {
+			addLegacy()
+		}
+		if len(results) < limit {
+			addYoutube()
 		}
 	}
 	return results
@@ -196,17 +358,32 @@ func requestAndCacheMusic(song, singer string) MusicItem {
 	if !cfg.AutoCache {
 		return requestMusicNoCache(song, singer)
 	}
+	if item := requestLegacyDirect(song, singer, true); item.Title != "" {
+		return item
+	}
 
-	// 旧源优先
-	sources := []string{"kuwo", "netease", "migu", "baidu"}
-	for _, source := range sources {
-		item := YuafengAPIResponseHandler(source, song, singer)
-		if item.Title != "" {
-			return item
+	song = strings.TrimSpace(song)
+	singer = strings.TrimSpace(singer)
+	if song == "" {
+		return MusicItem{}
+	}
+
+	if singer == "" {
+		for _, sep := range []string{" - ", "-", " / ", "/", "  ", " "} {
+			parts := strings.SplitN(song, sep, 2)
+			if len(parts) == 2 {
+				left := strings.TrimSpace(parts[0])
+				right := strings.TrimSpace(parts[1])
+				if left != "" && right != "" {
+					item := requestAndCacheMusicFromYouTube(left, right)
+					if item.Title != "" {
+						return item
+					}
+				}
+			}
 		}
 	}
 
-	// fallback: YouTube 作为补源，仅在旧源完全失败时才触发
 	item := requestAndCacheMusicFromYouTube(song, singer)
 	if item.Title != "" {
 		return item
@@ -469,17 +646,8 @@ func getLocalMusicItem(song, singer string) MusicItem {
 }
 
 func requestMusicNoCache(song, singer string) MusicItem {
-	// 自动缓存关闭时，优先返回直链，不落盘；YouTube 仍保持原有缓存式补源逻辑，避免返回不可播 URL。
-	sources := []string{"kuwo", "netease", "migu", "baidu"}
-	for _, source := range sources {
-		item := YuafengAPIResponseHandlerNoCache(source, song, singer)
-		if item.Title != "" {
-			item.FromCache = false
-			if item.SourceType == "" {
-				item.SourceType = source
-			}
-			return item
-		}
+	if item := requestLegacyDirect(song, singer, false); item.Title != "" {
+		return item
 	}
 
 	item := requestAndCacheMusicFromYouTube(song, singer)

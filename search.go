@@ -67,16 +67,11 @@ func searchAllResults(query string, r *http.Request) []SearchResult {
 		}
 	}
 
-	// 搜索优先级：缓存 > 本地 > 旧源 > YouTube 补源 > 小爱音箱远端
-	appendUnique(convertMusicItemsToSearchResults(searchCacheMusic(query)))
+	strategy := getSourceStrategy()
+	fmt.Printf("[API] Search strategy: %s\n", strategy)
+	appendUnique(convertMusicItemsToSearchResults(searchUnifiedByStrategy(query, 20)))
 	if len(results) < 20 {
-		appendUnique(convertMusicItemsToSearchResults(searchLocalMusic(query)))
-	}
-	if len(results) < 20 {
-		appendUnique(convertMusicItemsToSearchResults(searchFromSources(query)))
-	}
-	if len(results) < 20 {
-		appendUnique(convertMusicItemsToSearchResults(searchFromAPI(query)))
+		appendUnique(SearchFromXiaoMusic(query, r))
 	}
 
 	if len(results) > 20 {
@@ -181,7 +176,7 @@ func searchLocalMusic(query string) []MusicItem {
 // searchFromAPI searches music from external APIs
 func searchFromAPI(query string) []MusicItem {
 	var results []MusicItem
-	item := requestAndCacheMusic(query, "")
+	item := enqueueAsyncCacheTask(query, "")
 	if item.Title != "" {
 		results = append(results, item)
 	}

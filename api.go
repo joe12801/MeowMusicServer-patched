@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -37,31 +37,10 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 		scheme = "https"
 	}
 
-	var musicItem MusicItem
-	found := false
-
-	// 播放优先级：缓存 > 本地 > 旧源 > YouTube 补源
-	if item, ok := findExactCacheMusic(song, singer); ok {
-		fmt.Printf("[Play] Cache hit: %s - %s\n", item.Artist, item.Title)
-		musicItem = item
-		found = true
-	}
-
-	if !found {
-		if item := getLocalMusicItem(song, singer); item.Title != "" {
-			fmt.Printf("[Play] Local hit: %s - %s\n", item.Artist, item.Title)
-			musicItem = item
-			found = true
-		}
-	}
-
-	if !found {
-		fmt.Println("[Play] Cache/local miss, trying legacy sources then YouTube fallback.")
-		musicItem = requestAndCacheMusic(song, singer)
-		if musicItem.Title != "" {
-			found = true
-		}
-	}
+	strategy := getSourceStrategy()
+	fmt.Printf("[Play] Resolving with source strategy: %s\n", strategy)
+	musicItem := resolveMusicByStrategy(song, singer)
+	found := musicItem.Title != ""
 
 	if !found {
 		musicItem = MusicItem{FromCache: false, IP: ip}
@@ -108,13 +87,17 @@ func streamLiveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dirName := fmt.Sprintf("./files/cache/music/%s-%s", singer, song)
-	cachedFile := filepath.Join(dirName, "music.mp3")
-	if _, err := os.Stat(cachedFile); err == nil {
-		fmt.Printf("[Stream Live] Serving from cache: %s\n", cachedFile)
-		w.Header().Set("Content-Type", "audio/mpeg")
-		http.ServeFile(w, r, cachedFile)
-		return
+	if item, ok := findExactCacheMusic(song, singer); ok {
+		folder := strings.TrimPrefix(item.AudioURL, "/cache/music/")
+		folder = strings.TrimSuffix(folder, "/music.mp3")
+		folder, _ = url.PathUnescape(folder)
+		cachedFile := cacheFilePath(folder, "music.mp3")
+		if _, err := os.Stat(cachedFile); err == nil {
+			fmt.Printf("[Stream Live] Serving from cache: %s\n", cachedFile)
+			w.Header().Set("Content-Type", "audio/mpeg")
+			http.ServeFile(w, r, cachedFile)
+			return
+		}
 	}
 
 	fmt.Printf("[Stream Live] Cache miss, fetching from API...\n")

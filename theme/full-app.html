@@ -660,6 +660,22 @@
             transform: none;
         }
 
+        .strategy-select {
+            min-width: 168px;
+            padding: 10px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.92);
+            color: #444;
+            font-weight: 700;
+            outline: none;
+        }
+
+        .strategy-select:focus {
+            border-color: rgba(102,126,234,0.5);
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.12);
+        }
+
         .song-meta-row {
             display:flex;
             flex-wrap:wrap;
@@ -702,97 +718,6 @@
 
         .playlist-pick-name { font-weight:800; color:#444; }
         .playlist-pick-meta { font-size:12px; color:#888; margin-top:4px; }
-
-        .library-search-card {
-            background: rgba(255,255,255,0.74);
-            border: 1px solid rgba(255,255,255,0.7);
-            border-radius: 22px;
-            padding: 14px 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
-        }
-
-        .library-search-bar {
-            display:flex;
-            align-items:center;
-            gap:12px;
-            flex-wrap:wrap;
-        }
-
-        .library-search-input-wrap {
-            position:relative;
-            flex:1;
-            min-width: 220px;
-        }
-
-        .library-search-input {
-            width:100%;
-            padding: 14px 48px 14px 44px;
-            border-radius: 999px;
-            border: 1.5px solid rgba(255,255,255,0.8);
-            background: rgba(255,255,255,0.92);
-            color:#333;
-            font-size:15px;
-            font-weight:600;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
-            transition: all 0.22s ease;
-        }
-
-        .library-search-input:focus {
-            outline:none;
-            border-color: var(--input-focus);
-            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.09);
-            transform: translateY(-1px);
-        }
-
-        .library-search-icon {
-            position:absolute;
-            left:16px;
-            top:50%;
-            transform: translateY(-50%);
-            font-size:16px;
-            color:#8b8b99;
-            pointer-events:none;
-        }
-
-        .library-search-clear {
-            position:absolute;
-            right:12px;
-            top:50%;
-            transform: translateY(-50%);
-            border:none;
-            background: transparent;
-            color:#9aa0b2;
-            font-size:18px;
-            cursor:pointer;
-            padding:4px;
-            line-height:1;
-            display:none;
-        }
-
-        .library-search-clear.visible {
-            display:block;
-        }
-
-        .library-search-note {
-            margin-top:10px;
-            color:#7b7f8d;
-            font-size:12px;
-            font-weight:600;
-        }
-
-        .playlist-header {
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            gap:12px;
-            flex-wrap:wrap;
-            margin-bottom:14px;
-        }
-
-        .playlist-detail-search {
-            margin: 14px 0 16px;
-        }
 
         .modal {
             display: none;
@@ -1242,13 +1167,9 @@
                 padding: 10px;
             }
 
-            .section-header, .section-actions, .inline-actions, .stats-row, .playlist-song-row, .playlist-pick-item, .library-search-bar, .playlist-header {
+            .section-header, .section-actions, .inline-actions, .stats-row, .playlist-song-row, .playlist-pick-item {
                 flex-direction: column;
                 align-items: stretch;
-            }
-
-            .library-search-input-wrap {
-                min-width: 0;
             }
 
             .song-meta-row {
@@ -1495,6 +1416,7 @@
                 <div class="nav-tabs">
                     <button class="nav-tab active" onclick="switchTab('search')">搜索</button>
                     <button class="nav-tab" onclick="switchTab('local')">本地音乐</button>
+                    <button class="nav-tab" onclick="switchTab('cache')">缓存音乐</button>
                     <button class="nav-tab" onclick="switchTab('favorite')">我喜欢</button>
                     <button class="nav-tab" onclick="switchTab('playlists')">我的歌单</button>
                     <button class="nav-tab" onclick="switchTab('devices')">设备管理</button>
@@ -1519,20 +1441,17 @@
                         <div class="stats-row">
                             <span class="stat-chip">🎼 本地歌曲 <span id="localCount">0</span> 首</span>
                         </div>
-                        <div class="library-search-card">
-                            <div class="library-search-bar">
-                                <div class="library-search-input-wrap">
-                                    <span class="library-search-icon">🔎</span>
-                                    <input type="text" class="library-search-input" id="localFilterInput" placeholder="搜索本地音乐：歌名 / 歌手 / 文件名" oninput="handleLibrarySearchInput('local', this.value)" onkeydown="handleLibrarySearchKeydown(event, 'local')">
-                                    <button type="button" class="library-search-clear" id="localFilterClear" onclick="clearLibrarySearch('local')">×</button>
-                                </div>
-                                <span class="stat-chip">匹配 <span id="localFilterCount">0</span> 首</span>
+                        <div class="search-box" style="margin: 12px 0 0; padding: 0; box-shadow: none; background: transparent;">
+                            <div class="search-inputs">
+                                <input type="text" class="search-input" id="localSearchInput"
+                                       placeholder="按歌名/歌手搜索本地音乐..." oninput="handleLocalMusicSearch()" onkeypress="handleLocalMusicSearchKeypress(event)">
                             </div>
-                            <div class="library-search-note">支持按歌名、歌手、文件名实时筛选。</div>
                         </div>
                         <div id="localMusicList"></div>
                     </div>
+                </div>
 
+                <div id="cacheTab" class="tab-content">
                     <div id="cachePanel" class="section-card">
                         <div class="section-header">
                             <div>
@@ -1544,12 +1463,26 @@
                                     <input type="checkbox" id="autoCacheToggle" onchange="saveCacheConfig()">
                                     <span>自动缓存搜索结果</span>
                                 </label>
+                                <label class="toggle-switch" for="sourceStrategySelect">
+                                    <span>播放源优先级</span>
+                                    <select id="sourceStrategySelect" class="strategy-select" onchange="saveCacheConfig()">
+                                        <option value="cache">cache 优先</option>
+                                        <option value="local">local 优先</option>
+                                        <option value="legacy">legacy 优先</option>
+                                        <option value="youtube">youtube 优先</option>
+                                    </select>
+                                </label>
                                 <button class="btn btn-play" onclick="loadCacheMusic()">刷新缓存列表</button>
                             </div>
                         </div>
                         <div class="stats-row">
                             <span class="stat-chip">🧊 缓存歌曲 <span id="cacheCount">0</span> 首</span>
                             <span class="stat-chip">⚙️ 自动缓存 <span id="autoCacheStatusText">读取中...</span></span>
+                            <span class="stat-chip">🎚️ 当前优先级 <span id="sourceStrategyStatusText">读取中...</span></span>
+                        </div>
+                        <div style="margin: 14px 0 10px;">
+                            <input type="text" class="search-input" id="cacheSearchInput"
+                                   placeholder="按歌名/歌手搜索缓存音乐..." oninput="handleCacheMusicSearch()" onkeypress="handleCacheMusicSearchKeypress(event)">
                         </div>
                         <div id="cacheMusicList"></div>
                     </div>
@@ -1563,18 +1496,6 @@
                     <div class="playlist-header">
                         <h2>我的歌单</h2>
                         <button class="btn-icon btn-add" onclick="showCreatePlaylistModal()">+ 新建歌单</button>
-                    </div>
-                    <div class="library-search-card">
-                        <div class="library-search-bar">
-                            <div class="library-search-input-wrap">
-                                <span class="library-search-icon">🔎</span>
-                                <input type="text" class="library-search-input" id="playlistFilterInput" placeholder="搜索歌单或当前歌单歌曲：歌名 / 歌手 / 歌单名" oninput="handleLibrarySearchInput('playlist', this.value)" onkeydown="handleLibrarySearchKeydown(event, 'playlist')">
-                                <button type="button" class="library-search-clear" id="playlistFilterClear" onclick="clearLibrarySearch('playlist')">×</button>
-                            </div>
-                            <span class="stat-chip" id="playlistFilterScope">当前筛选：歌单列表</span>
-                            <span class="stat-chip">匹配 <span id="playlistFilterCount">0</span> 项</span>
-                        </div>
-                        <div class="library-search-note">未打开歌单时筛选歌单列表；打开歌单后会同步筛选该歌单内歌曲。</div>
                     </div>
                     <div id="playlistsList"></div>
                 </div>
@@ -1671,16 +1592,6 @@
         <div class="modal-content">
             <div class="modal-title" id="playlistDetailTitle">歌单详情</div>
             <div id="playlistDetailMeta" style="color:#777;font-weight:600;margin-bottom:14px;"></div>
-            <div class="library-search-card playlist-detail-search">
-                <div class="library-search-bar">
-                    <div class="library-search-input-wrap">
-                        <span class="library-search-icon">🔎</span>
-                        <input type="text" class="library-search-input" id="playlistDetailFilterInput" placeholder="搜索当前歌单歌曲：歌名 / 歌手" oninput="syncPlaylistDetailFilter(this.value)" onkeydown="handleLibrarySearchKeydown(event, 'playlist')">
-                        <button type="button" class="library-search-clear" id="playlistDetailFilterClear" onclick="clearLibrarySearch('playlist')">×</button>
-                    </div>
-                    <span class="stat-chip">匹配 <span id="playlistDetailFilterCount">0</span> 首</span>
-                </div>
-            </div>
             <div id="playlistDetailSongs"></div>
             <div class="modal-buttons">
                 <button class="btn-cancel" onclick="hidePlaylistDetailModal()">关闭</button>
@@ -1943,28 +1854,28 @@
 
         // 标签切换
         function switchTab(tab) {
-            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            const tabOrder = ['search', 'local', 'cache', 'favorite', 'playlists', 'devices'];
+            document.querySelectorAll('.nav-tab').forEach((t, idx) => {
+                t.classList.toggle('active', tabOrder[idx] === tab);
+            });
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
             if (tab === 'search') {
-                document.querySelectorAll('.nav-tab')[0].classList.add('active');
                 document.getElementById('searchTab').classList.add('active');
             } else if (tab === 'local') {
-                document.querySelectorAll('.nav-tab')[1].classList.add('active');
                 document.getElementById('localTab').classList.add('active');
                 loadLocalMusic();
+            } else if (tab === 'cache') {
+                document.getElementById('cacheTab').classList.add('active');
                 loadCacheMusic();
                 loadCacheConfig();
             } else if (tab === 'favorite') {
-                document.querySelectorAll('.nav-tab')[2].classList.add('active');
                 document.getElementById('favoriteTab').classList.add('active');
                 loadFavorites();
             } else if (tab === 'playlists') {
-                document.querySelectorAll('.nav-tab')[3].classList.add('active');
                 document.getElementById('playlistsTab').classList.add('active');
                 loadPlaylists();
             } else if (tab === 'devices') {
-                document.querySelectorAll('.nav-tab')[4].classList.add('active');
                 document.getElementById('devicesTab').classList.add('active');
                 loadDevices();
             }
@@ -2232,6 +2143,8 @@
                 const response = await fetch('/api/local-music');
                 const data = await response.json();
                 localMusicCache = (Array.isArray(data) ? data : []).map(normalizeSong);
+                const localSearchInput = document.getElementById('localSearchInput');
+                localMusicSearchQuery = (localSearchInput?.value || '').trim().toLowerCase();
                 paginationState.local = 1;
                 renderLocalMusicList();
                 updateMusicStats();
@@ -2358,11 +2271,25 @@
                         <button class="btn-icon btn-add" onclick='addToFavorite(${JSON.stringify(song)})'>喜欢</button>
                         <button class="btn-icon btn-add" onclick='showPlaylistPicker(${JSON.stringify(song)}, "search")'>加入歌单</button>
                         <button class="btn-icon btn-theme-toggle" onclick='downloadSong(${JSON.stringify(song)})'>下载</button>
+                        <button class="btn-icon btn-remove" onclick='handleSearchDelete(${JSON.stringify(song)})'>删除</button>
                     </div>
                 </div>
             `).join('') + '</div>' + buildPagination(searchResultCache.length, currentPage, 'search');
             
             resultsDiv.innerHTML = html;
+        }
+
+        async function handleSearchDelete(song) {
+            const sourceType = (song.source_type || song.sourceType || '').toLowerCase();
+            if (sourceType === 'local') {
+                const filename = song.filename || ((song.title || song.Title) + '.mp3');
+                return deleteLocalMusic(filename);
+            }
+            if (sourceType === 'cache' || sourceType === 'legacy_api' || sourceType === 'youtube' || sourceType === 'xiaomusic') {
+                const folder = song.folder || (song.filename ? song.filename.replace(/\.mp3$/i, '') : ((song.artist || song.Artist || '未知') + '-' + (song.title || song.Title || '未知')));
+                return deleteCacheMusic(folder);
+            }
+            alert('当前来源暂不支持删除');
         }
 
         // 播放相关
@@ -2715,15 +2642,13 @@
 
         // 存储当前收藏列表
         let favoriteSongs = [];
+        let favoriteSearchKeyword = '';
         
         
         let localMusicCache = [];
         let cacheMusicCache = [];
-        const libraryFilters = {
-            local: '',
-            favorite: '',
-            playlist: ''
-        };
+        let localMusicSearchQuery = '';
+        let cacheMusicSearchQuery = '';
         const PAGE_SIZE = 10;
         const paginationState = {
             local: 1,
@@ -2733,96 +2658,7 @@
         };
         let searchResultCache = [];
         
-        function getSongSearchText(song = {}) {
-            return [song.title, song.Title, song.artist, song.Artist, song.filename, song.folder]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase();
-        }
-
-        function getPlaylistSearchText(playlist = {}) {
-            const songsText = Array.isArray(playlist.songs)
-                ? playlist.songs.map(song => getSongSearchText(song)).join(' ')
-                : '';
-            return [playlist.name, playlist.description, songsText]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase();
-        }
-
-        function filterSongsByKeyword(songs, keyword) {
-            const normalizedKeyword = (keyword || '').trim().toLowerCase();
-            if (!normalizedKeyword) return Array.isArray(songs) ? songs : [];
-            return (Array.isArray(songs) ? songs : []).filter(song => getSongSearchText(song).includes(normalizedKeyword));
-        }
-
-        function filterPlaylistsByKeyword(items, keyword) {
-            const normalizedKeyword = (keyword || '').trim().toLowerCase();
-            if (!normalizedKeyword) return Array.isArray(items) ? items : [];
-            return (Array.isArray(items) ? items : []).filter(item => getPlaylistSearchText(item).includes(normalizedKeyword));
-        }
-
-        function setInputValueIfNeeded(id, value) {
-            const input = document.getElementById(id);
-            if (input && input.value !== value) input.value = value;
-        }
-
-        function updateSearchClearButton(id, value) {
-            const btn = document.getElementById(id);
-            if (!btn) return;
-            btn.classList.toggle('visible', !!(value || '').trim());
-        }
-
-        function updateLibrarySearchSummary(type, count, scopeText = '') {
-            const countEl = document.getElementById(type + 'FilterCount');
-            if (countEl) countEl.textContent = String(count || 0);
-            if (type === 'playlist') {
-                const scopeEl = document.getElementById('playlistFilterScope');
-                if (scopeEl) scopeEl.textContent = scopeText || (currentPlaylist ? '当前筛选：当前歌单歌曲' : '当前筛选：歌单列表');
-                const detailCountEl = document.getElementById('playlistDetailFilterCount');
-                if (detailCountEl) detailCountEl.textContent = String(count || 0);
-            }
-        }
-
-        function applyLibrarySearch(type) {
-            if (type === 'local') {
-                paginationState.local = 1;
-                renderLocalMusicList();
-            } else if (type === 'favorite') {
-                paginationState.favorite = 1;
-                renderFavoriteList();
-            } else if (type === 'playlist') {
-                loadPlaylists({ preserveSearch: true, refreshDetail: !!currentPlaylist });
-            }
-        }
-
-        function handleLibrarySearchInput(type, value) {
-            libraryFilters[type] = (value || '').trim();
-            if (type === 'playlist') {
-                setInputValueIfNeeded('playlistFilterInput', libraryFilters.playlist);
-                setInputValueIfNeeded('playlistDetailFilterInput', libraryFilters.playlist);
-                updateSearchClearButton('playlistFilterClear', libraryFilters.playlist);
-                updateSearchClearButton('playlistDetailFilterClear', libraryFilters.playlist);
-            } else {
-                setInputValueIfNeeded(type + 'FilterInput', libraryFilters[type]);
-                updateSearchClearButton(type + 'FilterClear', libraryFilters[type]);
-            }
-            applyLibrarySearch(type);
-        }
-
-        function clearLibrarySearch(type) {
-            handleLibrarySearchInput(type, '');
-        }
-
-        function handleLibrarySearchKeydown(event, type) {
-            if (event.key === 'Escape') {
-                clearLibrarySearch(type);
-            }
-        }
-
-        function syncPlaylistDetailFilter(value) {
-            handleLibrarySearchInput('playlist', value);
-        }
+        
 
         function clampPage(page, totalItems, pageSize = PAGE_SIZE) {
             const totalPages = Math.max(1, Math.ceil((totalItems || 0) / pageSize));
@@ -2900,12 +2736,35 @@
             }
         }
 
+        function getFilteredLocalMusic() {
+            const query = (localMusicSearchQuery || '').trim().toLowerCase();
+            if (!query) return localMusicCache;
+            return localMusicCache.filter(song => {
+                const title = String(song.title || '').toLowerCase();
+                const artist = String(song.artist || '').toLowerCase();
+                return title.includes(query) || artist.includes(query);
+            });
+        }
+
+        function handleLocalMusicSearch() {
+            const input = document.getElementById('localSearchInput');
+            localMusicSearchQuery = (input?.value || '').trim().toLowerCase();
+            paginationState.local = 1;
+            renderLocalMusicList();
+        }
+
+        function handleLocalMusicSearchKeypress(e) {
+            if (e.key === 'Enter') {
+                handleLocalMusicSearch();
+            }
+        }
+
         function renderLocalMusicList() {
             updateMusicStats();
-            const keyword = libraryFilters.local;
-            const filteredLocalMusic = keyword ? filterSongsByKeyword(localMusicCache, keyword) : localMusicCache;
-            updateLibrarySearchSummary('local', filteredLocalMusic.length);
-            updateSearchClearButton('localFilterClear', keyword);
+            const filteredLocalMusic = getFilteredLocalMusic();
+            const emptyHtml = localMusicCache.length === 0
+                ? '<div class="empty-state">暂无本地音乐</div>'
+                : '<div class="empty-state">没有匹配的本地音乐</div>';
             renderPagedList(
                 filteredLocalMusic,
                 'local',
@@ -2920,25 +2779,74 @@
                             </div>
                         </div>
                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                            <button class="btn btn-play" onclick="playSong(localMusicCache[${index}])">播放</button>
-                            <button class="btn btn-add" onclick="showPlaylistPicker(localMusicCache[${index}], 'local')">加入歌单</button>
-                            <button class="btn btn-theme-toggle" onclick="downloadSong(localMusicCache[${index}])">下载</button>
+                            <button class="btn btn-play" onclick="playSong(getFilteredLocalMusic()[${index}])">播放</button>
+                            <button class="btn btn-add" onclick="showPlaylistPicker(getFilteredLocalMusic()[${index}], 'local')">加入歌单</button>
+                            <button class="btn btn-theme-toggle" onclick="downloadSong(getFilteredLocalMusic()[${index}])">下载</button>
                             <button class="btn btn-theme-toggle" onclick='renameLocalMusic(${JSON.stringify('___PLACEHOLDER___')})'>重命名</button>
                             <button class="btn btn-logout" onclick='deleteLocalMusic(${JSON.stringify('___PLACEHOLDER___')})'>删除</button>
                         </div>
                     </div>
                 `.replaceAll(JSON.stringify('___PLACEHOLDER___'), JSON.stringify(song.filename || '')),
-                '<div class="empty-state">暂无本地音乐</div>',
+                emptyHtml,
                 'localMusicList'
             );
         }
 
+        function findCacheSongByFolder(folder) {
+            return (Array.isArray(cacheMusicCache) ? cacheMusicCache : []).find(song => (song.folder || '') === (folder || '')) || null;
+        }
+
+        function playCacheSong(folder) {
+            const song = findCacheSongByFolder(folder);
+            if (!song) {
+                alert('未找到对应的缓存音乐');
+                return;
+            }
+            playSong(song);
+        }
+
+        function addCacheSongToPlaylist(folder) {
+            const song = findCacheSongByFolder(folder);
+            if (!song) {
+                alert('未找到对应的缓存音乐');
+                return;
+            }
+            showPlaylistPicker(song, 'cache');
+        }
+
+        function getFilteredCacheMusic() {
+            const query = (cacheMusicSearchQuery || '').trim().toLowerCase();
+            if (!query) return cacheMusicCache;
+            return (Array.isArray(cacheMusicCache) ? cacheMusicCache : []).filter(song => {
+                const title = String(song.title || song.Title || '').toLowerCase();
+                const artist = String(song.artist || song.Artist || '').toLowerCase();
+                return title.includes(query) || artist.includes(query);
+            });
+        }
+
+        function handleCacheMusicSearch() {
+            const input = document.getElementById('cacheSearchInput');
+            cacheMusicSearchQuery = (input?.value || '').trim().toLowerCase();
+            paginationState.cache = 1;
+            renderCacheMusicList();
+        }
+
+        function handleCacheMusicSearchKeypress(e) {
+            if (e.key === 'Enter') {
+                handleCacheMusicSearch();
+            }
+        }
+
         function renderCacheMusicList() {
             updateMusicStats();
+            const filteredCacheMusic = getFilteredCacheMusic();
+            const emptyHtml = cacheMusicCache.length === 0
+                ? '<div class="empty-state">暂无缓存音乐</div>'
+                : '<div class="empty-state">没有匹配的缓存音乐</div>';
             renderPagedList(
-                cacheMusicCache,
+                filteredCacheMusic,
                 'cache',
-                (song, index) => `
+                (song) => `
                     <div class="music-item">
                         <div class="music-info-wrap">
                             <div class="music-title">${escapeHtml(song.title)}</div>
@@ -2949,15 +2857,15 @@
                             </div>
                         </div>
                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                            <button class="btn btn-play" onclick="playSong(cacheMusicCache[${index}])">播放</button>
-                            <button class="btn btn-add" onclick="showPlaylistPicker(cacheMusicCache[${index}], 'cache')">加入歌单</button>
-                            <button class="btn btn-theme-toggle" onclick="downloadSong(cacheMusicCache[${index}])">下载</button>
+                            <button class="btn btn-play" onclick='playCacheSong(${JSON.stringify('___PLACEHOLDER___')})'>播放</button>
+                            <button class="btn btn-add" onclick='addCacheSongToPlaylist(${JSON.stringify('___PLACEHOLDER___')})'>加入歌单</button>
+                            <button class="btn btn-theme-toggle" onclick='downloadSong(findCacheSongByFolder(${JSON.stringify('___PLACEHOLDER___')}))'>下载</button>
                             <button class="btn btn-theme-toggle" onclick='promoteCacheMusic(${JSON.stringify('___PLACEHOLDER___')})'>转入本地</button>
                             <button class="btn btn-logout" onclick='deleteCacheMusic(${JSON.stringify('___PLACEHOLDER___')})'>删除缓存</button>
                         </div>
                     </div>
                 `.replaceAll(JSON.stringify('___PLACEHOLDER___'), JSON.stringify(song.folder || '')),
-                '<div class="empty-state">暂无缓存音乐</div>',
+                emptyHtml,
                 'cacheMusicList'
             );
         }
@@ -2970,18 +2878,34 @@
             loadCacheMusic();
         }
 
+        function getSourceStrategyLabel(value) {
+            const map = {
+                cache: 'cache 优先',
+                local: 'local 优先',
+                legacy: 'legacy 优先',
+                youtube: 'youtube 优先'
+            };
+            return map[value] || 'cache 优先';
+        }
+
         async function loadCacheConfig() {
             const checkbox = document.getElementById('autoCacheToggle');
-            if (!checkbox || !token) return;
+            const strategySelect = document.getElementById('sourceStrategySelect');
+            if (!checkbox || !strategySelect || !token) return;
             try {
                 const response = await fetch('/api/cache-config', {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 if (!response.ok) return;
                 const data = await response.json();
+                const sourceStrategy = ['cache', 'local', 'legacy', 'youtube'].includes(data.source_strategy) ? data.source_strategy : 'cache';
                 checkbox.checked = !!data.auto_cache;
+                strategySelect.value = sourceStrategy;
+                strategySelect.dataset.prevValue = sourceStrategy;
                 const statusText = document.getElementById('autoCacheStatusText');
                 if (statusText) statusText.textContent = checkbox.checked ? '已开启' : '已关闭';
+                const strategyStatusText = document.getElementById('sourceStrategyStatusText');
+                if (strategyStatusText) strategyStatusText.textContent = getSourceStrategyLabel(sourceStrategy);
             } catch (error) {
                 console.warn('加载缓存配置失败:', error);
             }
@@ -2989,7 +2913,14 @@
 
         async function saveCacheConfig() {
             const checkbox = document.getElementById('autoCacheToggle');
-            if (!checkbox) return;
+            const strategySelect = document.getElementById('sourceStrategySelect');
+            if (!checkbox || !strategySelect) return;
+            const previousAutoCache = !checkbox.checked;
+            const previousStrategy = strategySelect.dataset.prevValue || 'cache';
+            const payload = {
+                auto_cache: checkbox.checked,
+                source_strategy: strategySelect.value || 'cache'
+            };
             try {
                 const response = await fetch('/api/cache-config', {
                     method: 'POST',
@@ -2997,15 +2928,19 @@
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + token
                     },
-                    body: JSON.stringify({ auto_cache: checkbox.checked })
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message || '保存失败');
+                strategySelect.dataset.prevValue = payload.source_strategy;
                 const statusText = document.getElementById('autoCacheStatusText');
                 if (statusText) statusText.textContent = checkbox.checked ? '已开启' : '已关闭';
+                const strategyStatusText = document.getElementById('sourceStrategyStatusText');
+                if (strategyStatusText) strategyStatusText.textContent = getSourceStrategyLabel(payload.source_strategy);
             } catch (error) {
-                alert('保存自动缓存设置失败: ' + error.message);
-                checkbox.checked = !checkbox.checked;
+                alert('保存缓存/播放源设置失败: ' + error.message);
+                checkbox.checked = previousAutoCache;
+                strategySelect.value = previousStrategy;
             }
         }
 
@@ -3017,6 +2952,8 @@
                 const response = await fetch('/api/cache-music');
                 const rawData = await response.json();
                 cacheMusicCache = (Array.isArray(rawData) ? rawData : []).map(item => ({ ...normalizeSong(item), folder: item.folder || '' }));
+                const cacheSearchInput = document.getElementById('cacheSearchInput');
+                cacheMusicSearchQuery = (cacheSearchInput?.value || '').trim().toLowerCase();
                 paginationState.cache = 1;
                 renderCacheMusicList();
             } catch (error) {
@@ -3076,39 +3013,61 @@
                 const songs = await response.json();
 
                 favoriteSongs = Array.isArray(songs) ? songs : [];
+                paginationState.favorite = 1;
                 renderFavoriteList();
             } catch (error) {
                 listDiv.innerHTML = '<div class="empty-state">加载失败</div>';
             }
         }
 
+        function getFilteredFavoriteSongs() {
+            if (!Array.isArray(favoriteSongs)) return [];
+            const keyword = (favoriteSearchKeyword || '').trim().toLowerCase();
+            if (!keyword) return favoriteSongs;
+
+            return favoriteSongs.filter(song => {
+                const title = String(song.title || song.Title || '').toLowerCase();
+                const artist = String(song.artist || song.Artist || '').toLowerCase();
+                return title.includes(keyword) || artist.includes(keyword);
+            });
+        }
+
+        function updateFavoriteSearch(keyword) {
+            favoriteSearchKeyword = keyword || '';
+            paginationState.favorite = 1;
+            renderFavoriteList();
+        }
+
         function renderFavoriteList() {
             const listDiv = document.getElementById('favoriteList');
             if (!listDiv) return;
 
-            const keyword = libraryFilters.favorite;
-            const hasFavorites = Array.isArray(favoriteSongs) && favoriteSongs.length > 0;
-            const filteredFavorites = keyword ? filterSongsByKeyword(favoriteSongs, keyword) : (hasFavorites ? favoriteSongs : []);
-            updateLibrarySearchSummary('favorite', filteredFavorites.length);
-            updateSearchClearButton('favoriteFilterClear', keyword);
+            if (!Array.isArray(favoriteSongs) || favoriteSongs.length === 0) {
+                paginationState.favorite = 1;
+                listDiv.innerHTML = '<div class="empty-state">还没有喜欢的歌曲</div>';
+                return;
+            }
+
+            const filteredFavorites = getFilteredFavoriteSongs();
+            const hasKeyword = !!(favoriteSearchKeyword || '').trim();
+            const resultText = hasKeyword
+                ? `筛选后 ${filteredFavorites.length} / ${favoriteSongs.length} 首`
+                : `共 ${favoriteSongs.length} 首`;
 
             const headerHtml = `
-                <div class="library-search-card">
-                    <div class="library-search-bar">
-                        <div class="library-search-input-wrap">
-                            <span class="library-search-icon">🔎</span>
-                            <input type="text" class="library-search-input" id="favoriteFilterInput" placeholder="搜索我喜欢：歌名 / 歌手" value="${escapeHtml(keyword)}" oninput="handleLibrarySearchInput('favorite', this.value)" onkeydown="handleLibrarySearchKeydown(event, 'favorite')">
-                            <button type="button" class="library-search-clear ${keyword ? 'visible' : ''}" id="favoriteFilterClear" onclick="clearLibrarySearch('favorite')">×</button>
-                        </div>
-                        <button class="btn-icon" onclick="playAllFavorites()" style="background: #667eea; color: white; padding: 10px 20px;" ${filteredFavorites.length ? '' : 'disabled'}>
-                            ▶️ 播放全部 (${filteredFavorites.length}首)
-                        </button>
-                        <span class="stat-chip">匹配 <span id="favoriteFilterCount">${filteredFavorites.length}</span> 首</span>
-                    </div>
-                    <div class="library-search-note">支持按歌名、歌手实时筛选，播放全部会基于当前筛选结果。</div>
-                </div>
                 <div style="margin-bottom: 15px; display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap;">
-                    <div class="pagination-summary" style="margin-left:auto;">我喜欢列表每页 ${PAGE_SIZE} 首</div>
+                    <button class="btn-icon" onclick="playAllFavorites()" style="background: #667eea; color: white; padding: 10px 20px;">
+                        ▶️ 播放全部 (${filteredFavorites.length}首)
+                    </button>
+                    <input
+                        type="text"
+                        class="search-input"
+                        placeholder="搜索我喜欢的歌曲/歌手"
+                        value="${escapeHtml(favoriteSearchKeyword)}"
+                        oninput="updateFavoriteSearch(this.value)"
+                        style="max-width: 320px; min-width: 220px; flex: 1 1 260px;"
+                    >
+                    <div class="pagination-summary" style="margin-left:auto;">${resultText} · 每页 ${PAGE_SIZE} 首</div>
                 </div>
             `;
 
@@ -3130,9 +3089,7 @@
                         </div>
                     </div>
                 `,
-                hasFavorites
-                    ? '<div class="empty-state">没有匹配到喜欢的歌曲</div>'
-                    : '<div class="empty-state">还没有喜欢的歌曲</div>',
+                '<div class="empty-state">没有匹配的喜欢歌曲</div>',
                 tempContainerId
             );
 
@@ -3144,7 +3101,7 @@
 
         // 播放收藏列表中的所有歌曲
         function playAllFavorites() {
-            const filteredFavorites = libraryFilters.favorite ? filterSongsByKeyword(favoriteSongs, libraryFilters.favorite) : favoriteSongs;
+            const filteredFavorites = getFilteredFavoriteSongs();
             if (filteredFavorites.length > 0) {
                 playAll(filteredFavorites);
             }
@@ -3152,7 +3109,7 @@
 
         // 播放收藏列表中的指定歌曲
         function playFavoriteAtIndex(index) {
-            const filteredFavorites = libraryFilters.favorite ? filterSongsByKeyword(favoriteSongs, libraryFilters.favorite) : favoriteSongs;
+            const filteredFavorites = getFilteredFavoriteSongs();
             if (filteredFavorites.length > 0) {
                 playFromList(filteredFavorites, index);
             }
@@ -3194,31 +3151,9 @@
                 const data = await response.json();
                 playlists = Array.isArray(data) ? data : [];
 
-                if (currentPlaylist && currentPlaylist.id) {
-                    const latest = playlists.find(pl => pl.id === currentPlaylist.id);
-                    if (latest) {
-                        currentPlaylist = latest;
-                    } else {
-                        currentPlaylist = null;
-                        hidePlaylistDetailModal();
-                    }
-                }
-
-                const keyword = libraryFilters.playlist;
-                const filteredPlaylists = keyword ? filterPlaylistsByKeyword(playlists, keyword) : playlists;
-                updateLibrarySearchSummary(
-                    'playlist',
-                    currentPlaylist ? ((keyword ? filterSongsByKeyword(currentPlaylist.songs, keyword) : (currentPlaylist.songs || [])).length) : filteredPlaylists.length,
-                    currentPlaylist ? '当前筛选：当前歌单歌曲' : '当前筛选：歌单列表'
-                );
-                setInputValueIfNeeded('playlistFilterInput', keyword);
-                setInputValueIfNeeded('playlistDetailFilterInput', keyword);
-                updateSearchClearButton('playlistFilterClear', keyword);
-                updateSearchClearButton('playlistDetailFilterClear', keyword);
-
                 if (listDiv) {
-                    if (filteredPlaylists.length > 0) {
-                        const html = filteredPlaylists.map(pl => `
+                    if (playlists.length > 0) {
+                        const html = playlists.map(pl => `
                             <div class="playlist-item" onclick='viewPlaylistById(${JSON.stringify(pl.id)})'>
                                 <div class="playlist-name">${escapeHtml(pl.name)}</div>
                                 <div class="playlist-count">${pl.songs ? pl.songs.length : 0} 首歌曲${pl.description ? ' · ' + escapeHtml(pl.description) : ''}</div>
@@ -3226,14 +3161,21 @@
                         `).join('');
                         listDiv.innerHTML = html;
                     } else {
-                        listDiv.innerHTML = playlists.length > 0
-                            ? '<div class="empty-state">没有匹配到歌单或歌曲</div>'
-                            : '<div class="empty-state">还没有歌单</div>';
+                        listDiv.innerHTML = '<div class="empty-state">还没有歌单</div>';
                     }
                 }
 
-                if (currentPlaylist && refreshDetail) {
-                    viewPlaylist(currentPlaylist);
+                if (currentPlaylist && currentPlaylist.id) {
+                    const latest = playlists.find(pl => pl.id === currentPlaylist.id);
+                    if (latest) {
+                        currentPlaylist = latest;
+                        if (refreshDetail) {
+                            viewPlaylist(latest);
+                        }
+                    } else {
+                        currentPlaylist = null;
+                        hidePlaylistDetailModal();
+                    }
                 }
 
                 return playlists;
@@ -3382,17 +3324,11 @@
             const title = document.getElementById('playlistDetailTitle');
             const meta = document.getElementById('playlistDetailMeta');
             const songsWrap = document.getElementById('playlistDetailSongs');
-            const detailInput = document.getElementById('playlistDetailFilterInput');
             title.textContent = '🎵 ' + (playlist.name || '歌单详情');
-            const totalSongs = Array.isArray(playlist.songs) ? playlist.songs.length : 0;
-            const filteredSongs = libraryFilters.playlist ? filterSongsByKeyword(playlist.songs, libraryFilters.playlist) : (playlist.songs || []);
-            meta.textContent = `${totalSongs} 首歌曲${playlist.description ? ' · ' + playlist.description : ''}${libraryFilters.playlist ? ` · 当前匹配 ${filteredSongs.length} 首` : ''}`;
-            if (detailInput) detailInput.value = libraryFilters.playlist || '';
-            updateSearchClearButton('playlistDetailFilterClear', libraryFilters.playlist);
-            updateLibrarySearchSummary('playlist', filteredSongs.length, '当前筛选：当前歌单歌曲');
+            meta.textContent = `${playlist.songs ? playlist.songs.length : 0} 首歌曲${playlist.description ? ' · ' + playlist.description : ''}`;
 
-            if (filteredSongs && filteredSongs.length > 0) {
-                songsWrap.innerHTML = filteredSongs.map(song => `
+            if (playlist.songs && playlist.songs.length > 0) {
+                songsWrap.innerHTML = playlist.songs.map(song => `
                     <div class="playlist-song-row">
                         <div class="music-info-wrap">
                             <div class="music-title">${escapeHtml(song.title || song.Title || '未知歌曲')}</div>
@@ -3407,9 +3343,7 @@
                     </div>
                 `).join('');
             } else {
-                songsWrap.innerHTML = totalSongs > 0
-                    ? '<div class="empty-state">当前筛选下没有匹配歌曲</div>'
-                    : '<div class="empty-state">这个歌单还没有歌曲</div>';
+                songsWrap.innerHTML = '<div class="empty-state">这个歌单还没有歌曲</div>';
             }
             modal.classList.add('active');
         }

@@ -3,14 +3,14 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 type CacheConfig struct {
-	AutoCache bool `json:"auto_cache"`
+	AutoCache      bool   `json:"auto_cache"`
+	SourceStrategy string `json:"source_strategy"`
 }
 
 type CacheMusicActionRequest struct {
@@ -22,19 +22,31 @@ func cacheConfigPath() string {
 	return "./files/cache_config.json"
 }
 
+func normalizeSourceStrategy(strategy string) string {
+	strategy = strings.ToLower(strings.TrimSpace(strategy))
+	switch strategy {
+	case "cache", "local", "legacy", "youtube":
+		return strategy
+	default:
+		return "cache"
+	}
+}
+
 func readCacheConfig() CacheConfig {
-	cfg := CacheConfig{AutoCache: TrueDefault()}
+	cfg := CacheConfig{AutoCache: TrueDefault(), SourceStrategy: "cache"}
 	b, err := os.ReadFile(cacheConfigPath())
 	if err != nil {
 		return cfg
 	}
 	_ = json.Unmarshal(b, &cfg)
+	cfg.SourceStrategy = normalizeSourceStrategy(cfg.SourceStrategy)
 	return cfg
 }
 
 func TrueDefault() bool { return true }
 
 func writeCacheConfig(cfg CacheConfig) error {
+	cfg.SourceStrategy = normalizeSourceStrategy(cfg.SourceStrategy)
 	b, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
@@ -49,7 +61,7 @@ func HandleCacheConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodPost {
-		var cfg CacheConfig
+		cfg := readCacheConfig()
 		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
@@ -59,47 +71,26 @@ func HandleCacheConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "设置已保存"})
+		json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "message": "设置已保存", "config": readCacheConfig()})
 		return
 	}
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 func HandleCacheMusicList(w http.ResponseWriter, r *http.Request) {
-	cacheDir := "./files/cache/music"
-	_ = os.MkdirAll(cacheDir, 0755)
-	entries, err := os.ReadDir(cacheDir)
-	if err != nil {
-		http.Error(w, "Failed to read cache music directory", http.StatusInternalServerError)
-		return
-	}
 	var result []map[string]interface{}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		folder := entry.Name()
-		mp3Path := filepath.Join(cacheDir, folder, "music.mp3")
-		if _, err := os.Stat(mp3Path); err != nil {
-			continue
-		}
-		title := folder
-		artist := "缓存音乐"
-		if strings.Contains(folder, "-") {
-			parts := strings.SplitN(folder, "-", 2)
-			artist = strings.TrimSpace(parts[0])
-			title = strings.TrimSpace(parts[1])
-		}
-		base := "/cache/music/" + url.PathEscape(folder) + "/music.mp3"
+	for _, folder := range listCacheFolders() {
+		sourceType, artist, title, leaf := parseCacheFolder(folder)
+		base := cacheBaseURL(folder) + "/music.mp3"
 		result = append(result, map[string]interface{}{
 			"folder":         folder,
-			"filename":       folder + ".mp3",
+			"filename":       leaf + ".mp3",
 			"title":          title,
 			"artist":         artist,
 			"audio_url":      base,
 			"audio_full_url": base,
 			"from_cache":     true,
-			"source_type":    "cache",
+			"source_type":    sourceType,
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -116,15 +107,16 @@ func HandlePromoteCacheMusic(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	folder := sanitizeLocalFilename(req.Folder)
+	folder := sanitizeCacheFolderPath(req.Folder)
 	if folder == "" {
-		folder = sanitizeLocalFilename(strings.TrimSuffix(req.Filename, filepath.Ext(req.Filename)))
+		folder = sanitizeCacheFolderPath(strings.TrimSuffix(req.Filename, filepath.Ext(req.Filename)))
 	}
+	folder = resolveCacheFolder(folder)
 	if folder == "" {
 		http.Error(w, "Invalid folder", http.StatusBadRequest)
 		return
 	}
-	src := filepath.Join("./files/cache/music", folder, "music.mp3")
+	src := cacheFilePath(folder, "music.mp3")
 	dstDir := "./files/music"
 	_ = os.MkdirAll(dstDir, 0755)
 	dst := filepath.Join(dstDir, folder+".mp3")
@@ -151,15 +143,16 @@ func HandleDeleteCacheMusic(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	folder := sanitizeLocalFilename(req.Folder)
+	folder := sanitizeCacheFolderPath(req.Folder)
 	if folder == "" {
-		folder = sanitizeLocalFilename(strings.TrimSuffix(req.Filename, filepath.Ext(req.Filename)))
+		folder = sanitizeCacheFolderPath(strings.TrimSuffix(req.Filename, filepath.Ext(req.Filename)))
 	}
+	folder = resolveCacheFolder(folder)
 	if folder == "" {
 		http.Error(w, "Invalid folder", http.StatusBadRequest)
 		return
 	}
-	if err := os.RemoveAll(filepath.Join("./files/cache/music", folder)); err != nil {
+	if err := os.RemoveAll(cacheDirPath(folder)); err != nil {
 		http.Error(w, "Delete failed", http.StatusInternalServerError)
 		return
 	}

@@ -37,11 +37,17 @@ func main() {
 	// Initialize device manager
 	GetDeviceManager()
 
+	initAsyncCacheManager()
+
 	// Register handlers
+	http.Handle("/cache/music/", http.StripPrefix("/cache/music/", http.FileServer(http.Dir("./files/cache/music"))))
 	http.HandleFunc("/", indexHandler)
 	http.HandleFunc("/stream_pcm", apiHandler)
-	http.HandleFunc("/stream_live", streamLiveHandler) // 实时流式转码，边下载边播放
-	http.HandleFunc("/api/search", HandleSearch)       // Search API
+	http.HandleFunc("/stream_live", streamLiveHandler)          // 实时流式转码，边下载边播放
+	http.HandleFunc("/api/stream-first", HandleFirstPlayStream) // 首播优先走远端拉流，后台落缓存
+	http.HandleFunc("/api/search", HandleSearch)                // Search API
+	http.HandleFunc("/api/xiaomusic/stream", HandleXiaoMusicStream)
+	http.HandleFunc("/api/xiaomusic/lyric", HandleXiaoMusicLyric)
 
 	// Legacy favorite API (backward compatible)
 	http.HandleFunc("/api/favorite/add", HandleAddToFavorite)
@@ -62,6 +68,7 @@ func main() {
 	http.HandleFunc("/api/cache-music", HandleCacheMusicList)
 	http.HandleFunc("/api/cache-music/promote", AuthMiddleware(HandlePromoteCacheMusic))
 	http.HandleFunc("/api/cache-music/delete", AuthMiddleware(HandleDeleteCacheMusic))
+	http.HandleFunc("/api/cache-task-status", AuthMiddleware(HandleAsyncCacheTaskStatus))
 
 	// Admin YouTube cookie API (requires authentication)
 	http.HandleFunc("/api/admin/youtube-cookie/status", AuthMiddleware(HandleYouTubeCookieStatus))

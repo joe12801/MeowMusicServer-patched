@@ -1,0 +1,36 @@
+# 编译产物
+meowmusicserver
+meowmusicserver.new
+MeowEmbedded-MusicServer
+__debug_bin*
+
+# 用户数据
+files/users.json
+files/user_playlists.json
+files/cache/
+files/music/
+files/system/
+
+# 配置/敏感
+.env
+youtube-cookies.txt
+files/cache_config.json
+devices.json
+
+# 临时文件
+*.bak*
+*.tmp
+*.last
+patch_*.py
+remove_*.py
+fix_*.py
+add_*.py
+apply_*.py
+inject_*.py
+ensure_*.py
+debug_api_response.html
+meow_patch_bundle.tgz
+
+# IDE
+.vscode/
+.idea/
